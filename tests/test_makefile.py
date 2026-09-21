@@ -32,9 +32,9 @@ def _copy_repo(tmp_path: Path) -> Path:
 
 
 def _fake_up_to_date_binary(root: Path) -> Path:
-    binary = root / "dist" / "depviz"
+    binary = root / "dist" / "drix"
     binary.parent.mkdir(exist_ok=True)
-    binary.write_text("#!/bin/sh\necho depviz-test\n", encoding="utf-8")
+    binary.write_text("#!/bin/sh\necho drix-test\n", encoding="utf-8")
     binary.chmod(0o755)
 
     inputs = [root / "pyproject.toml"]
@@ -58,7 +58,7 @@ def test_make_install_and_uninstall_respect_prefix(tmp_path: Path) -> None:
         capture_output=True,
         text=True,
     )
-    installed = prefix / "bin" / "depviz"
+    installed = prefix / "bin" / "drix"
     assert installed.read_bytes() == binary.read_bytes()
     assert installed.stat().st_mode & stat.S_IXUSR
 
@@ -85,7 +85,7 @@ def test_make_install_respects_destdir(tmp_path: Path) -> None:
         capture_output=True,
         text=True,
     )
-    installed = stage / "usr" / "local" / "bin" / "depviz"
+    installed = stage / "usr" / "local" / "bin" / "drix"
     assert installed.read_bytes() == binary.read_bytes()
 
 
@@ -108,9 +108,9 @@ elif args[:3] == ["-m", "pip", "install"]:
 elif args[:2] in (["-m", "pytest"], ["-m", "ruff"], ["-m", "mypy"], ["-m", "compileall"]):
     pass
 elif args == ["scripts/build_binary.py"]:
-    binary = Path.cwd() / "dist" / "depviz"
+    binary = Path.cwd() / "dist" / "drix"
     binary.parent.mkdir(exist_ok=True)
-    binary.write_text("#!/bin/sh\\necho depviz-fake\\n", encoding="utf-8")
+    binary.write_text("#!/bin/sh\\necho drix-fake\\n", encoding="utf-8")
     binary.chmod(0o755)
 else:
     raise SystemExit("unexpected child python invocation: " + repr(args))
@@ -184,7 +184,7 @@ def test_make_install_bootstraps_pyinstaller_without_host_dependency(tmp_path: P
         text=True,
     )
 
-    installed = prefix / "bin" / "depviz"
+    installed = prefix / "bin" / "drix"
     assert installed.exists()
     assert installed.stat().st_mode & stat.S_IXUSR
     calls = log.read_text(encoding="utf-8")

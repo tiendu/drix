@@ -1,6 +1,6 @@
-from depviz.analysis import analyze, infer_roots
-from depviz.inventory import reconcile_inventory
-from depviz.model import (
+from drix.analysis import analyze, infer_roots
+from drix.inventory import reconcile_inventory
+from drix.model import (
     Inventory,
     Manifest,
     ManifestRequirement,

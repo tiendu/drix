@@ -1,5 +1,5 @@
-from depviz.analysis import analyze
-from depviz.model import (
+from drix.analysis import analyze
+from drix.model import (
     Inventory,
     Manifest,
     ManifestRequirement,

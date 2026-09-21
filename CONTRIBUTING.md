@@ -1,6 +1,6 @@
-# Contributing to depviz
+# Contributing to drix
 
-`depviz` has one job:
+`drix` has one job:
 
 > **Identify which installed packages are risky to change, and explain why.**
 
@@ -17,13 +17,18 @@ of scope.
 2. **Unknown is better than false OK.** Unsupported version syntax must stay `UNKNOWN`
    unless a contradiction can still be proved from the known subset.
 3. **Package identity is ecosystem-specific.** PyPI uses packaging canonicalization. Conda
-   identity does not fold `.`, `_`, and `-`. Cross-ecosystem binding needs evidence that a
-   Conda package provides the Python distribution.
-4. **Roots are deterministic.** A supplied manifest defines roots. Without one, roots come
-   from source SCCs of the dependency graph. Do not add provenance heuristics.
+   identity does not fold `.`, `_`, and `-`. APT identity preserves Debian binary package
+   names and architecture qualifiers. Cross-ecosystem binding needs evidence that a Conda
+   package provides the Python distribution.
+4. **Roots are deterministic.** A supplied manifest defines roots. APT mode uses packages
+   marked manual by `apt-mark`. Otherwise roots come from source SCCs of the dependency
+   graph. Do not add Python/Conda provenance heuristics.
 5. **No opaque risk score.** Ranking remains the tuple `(roots affected, transitive
    dependents, direct dependents)`.
-6. **Inspection never mutates the target environment.**
+6. **Inspection never mutates the target environment.** APT support may run read-only
+   queries and `apt-get --simulate`, but never `apt update`, install, remove, or upgrade.
+7. **Native version semantics stay native.** Debian versions use `dpkg --compare-versions`;
+   do not reinterpret them as PEP 440.
 
 ## Test expectations
 
@@ -41,12 +46,12 @@ make check
 The Makefile creates an isolated `.build/venv`, installs the development checks there, and
 runs pytest, Ruff, mypy, and compileall through that interpreter. Host-global copies of those
 tools are deliberately not required. The CI matrix runs the same `make check` contract on
-Python 3.11, 3.12, and 3.13. Ruff is constrained to the 0.16 series in `pyproject.toml`;
-upgrade that range deliberately rather than inheriting a new default rule set accidentally.
+Python 3.11, 3.12, and 3.13. Development check versions are pinned in `pyproject.toml`; upgrade them deliberately rather than
+letting CI policy drift when linters/type checkers change defaults.
 
 ## Standalone-binary invariants
 
-When depviz is frozen into a standalone executable:
+When drix is frozen into a standalone executable:
 
 - never inspect the embedded runtime as the user's Python environment;
 - prefer an explicit prefix, then active `CONDA_PREFIX`/`VIRTUAL_ENV`, then `python3`/`python` on `PATH`;

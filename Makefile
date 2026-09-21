@@ -5,7 +5,7 @@ DESTDIR ?=
 INSTALL ?= install
 
 DISTDIR := dist
-BINARY := $(DISTDIR)/depviz
+BINARY := $(DISTDIR)/drix
 BUILD_ENV := .build/venv
 BUILD_PYTHON := $(BUILD_ENV)/bin/python
 DEV_READY := $(BUILD_ENV)/.dev-ready
@@ -22,23 +22,23 @@ binary: $(BINARY)
 $(BUILD_PYTHON):
 	@mkdir -p .build
 	@$(PYTHON) -m venv "$(BUILD_ENV)" || { \
-		echo "depviz: could not create the isolated build environment." >&2; \
-		echo "depviz: install Python venv support for $(PYTHON) (for example python3-venv on Debian/Ubuntu)." >&2; \
+		echo "drix: could not create the isolated build environment." >&2; \
+		echo "drix: install Python venv support for $(PYTHON) (for example python3-venv on Debian/Ubuntu)." >&2; \
 		exit 2; \
 	}
 	@"$(BUILD_PYTHON)" -m pip --version >/dev/null 2>&1 || { \
-		echo "depviz: the isolated build environment has no pip." >&2; \
-		echo "depviz: install Python venv/ensurepip support and retry." >&2; \
+		echo "drix: the isolated build environment has no pip." >&2; \
+		echo "drix: install Python venv/ensurepip support and retry." >&2; \
 		exit 2; \
 	}
 
 $(DEV_READY): pyproject.toml $(BUILD_PYTHON)
-	@echo "depviz: preparing isolated check environment..."
+	@echo "drix: preparing isolated check environment..."
 	@"$(BUILD_PYTHON)" -m pip install -e '.[dev]'
 	@touch "$@"
 
 $(BINARY_READY): pyproject.toml $(BUILD_PYTHON)
-	@echo "depviz: preparing isolated binary build environment..."
+	@echo "drix: preparing isolated binary build environment..."
 	@"$(BUILD_PYTHON)" -m pip install -e '.[binary]'
 	@touch "$@"
 
@@ -52,10 +52,10 @@ $(BINARY): $(BUILD_INPUTS)
 
 install: $(BINARY)
 	$(INSTALL) -d "$(DESTDIR)$(BINDIR)"
-	$(INSTALL) -m 0755 "$(BINARY)" "$(DESTDIR)$(BINDIR)/depviz"
+	$(INSTALL) -m 0755 "$(BINARY)" "$(DESTDIR)$(BINDIR)/drix"
 
 uninstall:
-	rm -f "$(DESTDIR)$(BINDIR)/depviz"
+	rm -f "$(DESTDIR)$(BINDIR)/drix"
 
 test: $(DEV_READY)
 	"$(BUILD_PYTHON)" -m pytest -q

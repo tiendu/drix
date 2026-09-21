@@ -3,10 +3,10 @@ from __future__ import annotations
 from collections import deque
 from pathlib import Path
 
-from depviz.analysis import _reachability, analyze
-from depviz.inventory import _merge_python_metadata_into_conda, _python_record, reconcile_inventory
-from depviz.manifests import load_manifest
-from depviz.model import (
+from drix.analysis import _reachability, analyze
+from drix.inventory import _merge_python_metadata_into_conda, _python_record, reconcile_inventory
+from drix.manifests import load_manifest
+from drix.model import (
     Inventory,
     Manifest,
     ManifestRequirement,
@@ -213,7 +213,7 @@ def test_same_named_conda_package_without_python_metadata_does_not_satisfy_pip_d
 
 
 def test_conda_file_metadata_can_map_different_package_and_python_names() -> None:
-    from depviz.inventory import _python_names_from_conda_files
+    from drix.inventory import _python_names_from_conda_files
 
     aliases = _python_names_from_conda_files(
         [
@@ -281,8 +281,8 @@ def test_mixed_pip_and_conda_constraints_can_prove_conflict() -> None:
 
 
 def test_unknown_conda_build_pin_does_not_corrupt_pip_semantics() -> None:
-    from depviz.constraints import analyze_constraints
-    from depviz.model import ConstraintContributor
+    from drix.constraints import analyze_constraints
+    from drix.model import ConstraintContributor
 
     result = analyze_constraints(
         "conda",
@@ -334,7 +334,7 @@ def test_load_inventory_merges_conda_owned_python_metadata_and_keeps_pip_overlay
 ) -> None:
     import json
 
-    import depviz.inventory as inventory_module
+    import drix.inventory as inventory_module
 
     meta = tmp_path / "conda-meta"
     meta.mkdir()
@@ -387,8 +387,8 @@ def test_load_inventory_merges_conda_owned_python_metadata_and_keeps_pip_overlay
 
 
 def test_conflict_witness_drops_unrelated_constraints_even_when_core_needs_more_than_four() -> None:
-    from depviz.constraints import analyze_constraints
-    from depviz.model import ConstraintContributor
+    from drix.constraints import analyze_constraints
+    from drix.model import ConstraintContributor
 
     contributors = [
         ConstraintContributor(PackageKey("pypi", "bound"), "target>=0,<5", ">=0,<5", "pypi")
@@ -435,7 +435,7 @@ def test_requirement_include_variants_and_inline_comments(tmp_path: Path) -> Non
 
 
 def test_conda_python_alias_detection_handles_windows_paths() -> None:
-    from depviz.inventory import _python_names_from_conda_files
+    from drix.inventory import _python_names_from_conda_files
 
     assert _python_names_from_conda_files(
         [r"Lib\\site-packages\\scikit_learn-1.6.0.dist-info\\METADATA"]
@@ -443,7 +443,7 @@ def test_conda_python_alias_detection_handles_windows_paths() -> None:
 
 
 def test_active_virtualenv_is_target_for_standalone_discovery(tmp_path: Path, monkeypatch) -> None:
-    import depviz.inventory as inventory_module
+    import drix.inventory as inventory_module
 
     python = tmp_path / "bin" / "python"
     python.parent.mkdir(parents=True)
@@ -457,7 +457,7 @@ def test_active_virtualenv_is_target_for_standalone_discovery(tmp_path: Path, mo
 
 
 def test_frozen_binary_uses_path_python_not_its_embedded_interpreter(monkeypatch, tmp_path: Path) -> None:
-    import depviz.inventory as inventory_module
+    import drix.inventory as inventory_module
 
     external = tmp_path / "python3"
     external.write_text("", encoding="utf-8")
@@ -470,7 +470,7 @@ def test_frozen_binary_uses_path_python_not_its_embedded_interpreter(monkeypatch
 def test_active_conda_prefix_drives_python_metadata_source(tmp_path: Path, monkeypatch) -> None:
     import json
 
-    import depviz.inventory as inventory_module
+    import drix.inventory as inventory_module
 
     meta = tmp_path / "conda-meta"
     meta.mkdir()
@@ -496,7 +496,7 @@ def test_active_conda_prefix_drives_python_metadata_source(tmp_path: Path, monke
 
 
 def test_frozen_inventory_never_uses_embedded_metadata(monkeypatch, tmp_path: Path) -> None:
-    import depviz.inventory as inventory_module
+    import drix.inventory as inventory_module
 
     external = tmp_path / "python3"
     external.write_text("", encoding="utf-8")
@@ -520,7 +520,7 @@ def test_frozen_inventory_never_uses_embedded_metadata(monkeypatch, tmp_path: Pa
 
 
 def test_frozen_external_process_restores_original_library_paths(monkeypatch) -> None:
-    import depviz.inventory as inventory_module
+    import drix.inventory as inventory_module
 
     monkeypatch.setattr(inventory_module, "_is_frozen", lambda: True)
     monkeypatch.setenv("LD_LIBRARY_PATH", "/tmp/_MEI/bundled")
@@ -537,7 +537,7 @@ def test_frozen_external_process_restores_original_library_paths(monkeypatch) ->
 def test_external_python_receives_sanitized_environment(monkeypatch, tmp_path: Path) -> None:
     import json
 
-    import depviz.inventory as inventory_module
+    import drix.inventory as inventory_module
 
     python = tmp_path / "python"
     python.write_text("", encoding="utf-8")
@@ -569,13 +569,13 @@ def test_external_python_receives_sanitized_environment(monkeypatch, tmp_path: P
     assert captured["env"]["LD_LIBRARY_PATH"] == "/system/lib"
 
 
-def test_explicit_prefix_without_python_does_not_fall_back_to_depviz_python(tmp_path: Path) -> None:
-    import depviz.inventory as inventory_module
+def test_explicit_prefix_without_python_does_not_fall_back_to_drix_python(tmp_path: Path) -> None:
+    import drix.inventory as inventory_module
 
     assert inventory_module._target_python(tmp_path, None) is None
 
 
-def test_active_prefix_without_python_does_not_fall_back_to_depviz_python(tmp_path: Path) -> None:
-    import depviz.inventory as inventory_module
+def test_active_prefix_without_python_does_not_fall_back_to_drix_python(tmp_path: Path) -> None:
+    import drix.inventory as inventory_module
 
     assert inventory_module._target_python(None, tmp_path) is None

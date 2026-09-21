@@ -5,9 +5,9 @@ from itertools import pairwise
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 
-from depviz.analysis import analyze
-from depviz.constraints import _python_conflict_provable
-from depviz.model import (
+from drix.analysis import analyze
+from drix.constraints import _python_conflict_provable
+from drix.model import (
     Inventory,
     Manifest,
     ManifestRequirement,
@@ -46,7 +46,7 @@ def test_random_graph_analysis_matches_bruteforce_oracle() -> None:
             for target in keys:
                 if rng.random() < 0.09:
                     record.dependencies.append(RequirementEdge(key, target, target.name, ""))
-                    if key != target:  # self-edges are deliberately ignored by depviz
+                    if key != target:  # self-edges are deliberately ignored by drix
                         forward[key].add(target)
             inventory.add(record)
 

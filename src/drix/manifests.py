@@ -7,7 +7,7 @@ from pathlib import Path
 import yaml
 from packaging.requirements import InvalidRequirement, Requirement
 
-from depviz.model import (
+from drix.model import (
     Manifest,
     ManifestRequirement,
     PackageKey,

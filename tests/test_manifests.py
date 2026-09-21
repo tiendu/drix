@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from depviz.manifests import load_manifest
-from depviz.model import PackageKey
+from drix.manifests import load_manifest
+from drix.model import PackageKey
 
 
 def test_conda_yaml_roots_and_constraints(tmp_path: Path) -> None:

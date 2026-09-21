@@ -2,12 +2,17 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from functools import lru_cache
 from importlib import import_module
+import re
+import shutil
+import subprocess
 
 from packaging.specifiers import InvalidSpecifier, Specifier, SpecifierSet
 from packaging.version import InvalidVersion, Version
 
-from depviz.model import ConstraintContributor
+from drix.model import ConstraintContributor
+from drix.runtime import external_process_environment
 
 
 @dataclass(frozen=True)
@@ -15,6 +20,118 @@ class ConstraintResult:
     state: str
     violated_by: tuple[ConstraintContributor, ...] = ()
     conflict_by: tuple[ConstraintContributor, ...] = ()
+
+
+_APT_SPEC = re.compile(r"^\s*(<<|<=|=|>=|>>)\s*(\S(?:.*\S)?)\s*$")
+
+
+@lru_cache(maxsize=8192)
+def _apt_compare(left: str, operator: str, right: str) -> bool | None:
+    """Compare Debian versions using dpkg's canonical ordering semantics."""
+
+    if shutil.which("dpkg") is None:
+        return None
+    op_map = {"<<": "lt", "<=": "le", "=": "eq", ">=": "ge", ">>": "gt"}
+    dpkg_op = op_map.get(operator)
+    if dpkg_op is None:
+        return None
+    proc = subprocess.run(
+        ["dpkg", "--compare-versions", left, dpkg_op, right],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        env=external_process_environment(),
+    )
+    if proc.returncode == 0:
+        return True
+    if proc.returncode == 1:
+        return False
+    return None
+
+
+def _parse_apt_specifier(specifier: str) -> tuple[str, str] | None:
+    if not specifier:
+        return None
+    match = _APT_SPEC.match(specifier)
+    if not match:
+        return None
+    return match.group(1), match.group(2)
+
+
+def apt_satisfies(version: str, specifier: str) -> bool | None:
+    if not specifier:
+        return True
+    parsed = _parse_apt_specifier(specifier)
+    if parsed is None:
+        return None
+    operator, required = parsed
+    return _apt_compare(version, operator, required)
+
+
+def _apt_version_cmp(left: str, right: str) -> int | None:
+    equal = _apt_compare(left, "=", right)
+    if equal is None:
+        return None
+    if equal:
+        return 0
+    less = _apt_compare(left, "<<", right)
+    if less is None:
+        return None
+    return -1 if less else 1
+
+
+def _apt_conflict_provable(specifiers: Iterable[str]) -> bool:
+    """Prove contradictions among simple Debian dependency relations.
+
+    Debian relations have one comparator per dependency atom.  We use dpkg itself for
+    version ordering, so epochs, tildes, and Debian revisions retain native semantics.
+    Unparseable relations are ignored for proof and therefore can only yield UNKNOWN,
+    never a false conflict.
+    """
+
+    parsed = [item for raw in specifiers if (item := _parse_apt_specifier(raw))]
+    if not parsed:
+        return False
+
+    exact = [version for op, version in parsed if op == "="]
+    if exact:
+        for candidate in exact:
+            if all(apt_satisfies(candidate, f"{op} {version}") is True for op, version in parsed):
+                return False
+        return True
+
+    lower: tuple[str, bool] | None = None
+    upper: tuple[str, bool] | None = None
+    for op, version in parsed:
+        if op in {">=", ">>"}:
+            inclusive = op == ">="
+            if lower is None:
+                lower = (version, inclusive)
+            else:
+                cmp = _apt_version_cmp(version, lower[0])
+                if cmp is None:
+                    return False
+                if cmp > 0 or (cmp == 0 and not inclusive and lower[1]):
+                    lower = (version, inclusive)
+        elif op in {"<=", "<<"}:
+            inclusive = op == "<="
+            if upper is None:
+                upper = (version, inclusive)
+            else:
+                cmp = _apt_version_cmp(version, upper[0])
+                if cmp is None:
+                    return False
+                if cmp < 0 or (cmp == 0 and not inclusive and upper[1]):
+                    upper = (version, inclusive)
+
+    if lower is None or upper is None:
+        return False
+    cmp = _apt_version_cmp(lower[0], upper[0])
+    if cmp is None:
+        return False
+    if cmp > 0:
+        return True
+    return cmp == 0 and (not lower[1] or not upper[1])
 
 
 def _python_satisfies(version: str, specifier: str) -> bool | None:
@@ -126,6 +243,8 @@ def _satisfies(ecosystem: str, version: str, specifier: str) -> bool | None:
         return _python_satisfies(version, specifier)
     if ecosystem == "conda":
         return _conda_satisfies(version, specifier)
+    if ecosystem == "apt":
+        return apt_satisfies(version, specifier)
     return None
 
 
@@ -307,6 +426,8 @@ def _conflict_provable(ecosystem: str, specifiers: Iterable[str]) -> bool:
         return _python_conflict_provable(specifiers)
     if ecosystem == "conda":
         return _conda_conflict_provable(specifiers)
+    if ecosystem == "apt":
+        return _apt_conflict_provable(specifiers)
     return False
 
 
@@ -349,7 +470,7 @@ def _minimal_conflict_witness(
     """Return a 1-minimal set of contributors that still proves the conflict.
 
     This avoids combinatorial subset search while ensuring every contributor in the
-    returned witness is necessary for the contradiction under depviz's conservative
+    returned witness is necessary for the contradiction under drix's conservative
     prover.
     """
 

@@ -3,14 +3,20 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 
-from depviz import __version__
-from depviz.model import Inventory, PackageKey, PackageRisk, name_matches
+from drix import __version__
+from drix.model import Inventory, PackageKey, PackageRisk, name_matches
 
 
 def _label(key: PackageKey) -> str:
-    if key.ecosystem in {"conda", "manifest"}:
+    if key.ecosystem in {"apt", "conda", "manifest"}:
         return key.name
     return f"{key.name} [pip]"
+
+
+def _action_label(row: PackageRisk) -> str:
+    if row.held:
+        return "HELD"
+    return row.planned_action or "-"
 
 
 def render_text(
@@ -21,8 +27,16 @@ def render_text(
     focus: str | None = None,
 ) -> str:
     lines: list[str] = []
-    lines.append(f"depviz: {inventory.source}")
+    lines.append(f"drix: {inventory.source}")
     lines.append(f"packages: {len(inventory.packages)}  roots: {len(roots)}")
+    if inventory.planned_changes:
+        counts: dict[str, int] = {}
+        for change in inventory.planned_changes.values():
+            counts[change.action] = counts.get(change.action, 0) + 1
+        summary = "  ".join(f"{action.lower()}: {counts[action]}" for action in sorted(counts))
+        lines.append("apt upgrade simulation: " + summary)
+    if inventory.held_packages:
+        lines.append(f"apt held packages: {len(inventory.held_packages)}")
     if missing_roots:
         lines.append("missing declared roots: " + ", ".join(sorted(missing_roots)))
     for diagnostic in inventory.diagnostics:
@@ -39,14 +53,24 @@ def render_text(
             lines.extend(_render_detail(row, show_paths=True))
         return "\n".join(lines)
 
-    lines.append(f"{'ROOTS':>5} {'TOTAL':>5} {'DIRECT':>6} {'VERSION':>9}  PACKAGE")
-    for row in results:
+    has_apt = any(row.package.ecosystem == "apt" for row in results)
+    if has_apt:
         lines.append(
+            f"{'ROOTS':>5} {'TOTAL':>5} {'DIRECT':>6} {'VERSION':>9} {'ACTION':>8}  PACKAGE"
+        )
+    else:
+        lines.append(f"{'ROOTS':>5} {'TOTAL':>5} {'DIRECT':>6} {'VERSION':>9}  PACKAGE")
+
+    for row in results:
+        prefix = (
             f"{len(row.affected_roots):>5} "
             f"{row.transitive_count:>5} "
             f"{len(row.direct_dependents):>6} "
-            f"{row.version_state:>9}  {_label(row.package)}"
+            f"{row.version_state:>9}"
         )
+        if has_apt:
+            prefix += f" {_action_label(row):>8}"
+        lines.append(f"{prefix}  {_label(row.package)}")
 
     problems = [
         row
@@ -78,6 +102,13 @@ def _render_detail(row: PackageRisk, *, show_paths: bool = False) -> list[str]:
         f"  direct dependents: {len(row.direct_dependents)}",
         f"  version: {row.version_state}",
     ]
+    if row.held:
+        lines.append("  apt: HELD")
+    if row.planned_action:
+        action = row.planned_action
+        if row.candidate_version:
+            action += f" -> {row.candidate_version}"
+        lines.append(f"  apt upgrade: {action}")
     if show_paths and row.root_paths:
         lines.append("  paths:")
         visible_paths = row.root_paths[:20]
@@ -112,12 +143,10 @@ def render_json(
     missing_roots: list[str],
     focus: str | None = None,
 ) -> str:
-    selected = [
-        row for row in results if focus is None or name_matches(row.package, focus)
-    ]
+    selected = [row for row in results if focus is None or name_matches(row.package, focus)]
     payload = {
         "schema_version": 1,
-        "depviz_version": __version__,
+        "drix_version": __version__,
         "source": inventory.source,
         "package_count": len(inventory.packages),
         "roots": [asdict(root) for root in sorted(roots)],
@@ -136,11 +165,11 @@ def render_json(
                     else {}
                 ),
                 "direct_dependents": [asdict(key) for key in row.direct_dependents],
-                "root_paths": [
-                    [asdict(key) for key in path]
-                    for path in row.root_paths
-                ],
+                "root_paths": [[asdict(key) for key in path] for path in row.root_paths],
                 "version_state": row.version_state,
+                "held": row.held,
+                "planned_action": row.planned_action,
+                "candidate_version": row.candidate_version,
                 "constraints": [
                     {
                         "package": asdict(contributor.package),

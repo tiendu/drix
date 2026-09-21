@@ -13,7 +13,7 @@ def default_marker_environment() -> dict[str, str]:
 
 
 def normalize_name(name: str) -> str:
-    """Return the canonical PyPI/distribution spelling used by depviz."""
+    """Return the canonical PyPI/distribution spelling used by drix."""
 
     return canonicalize_name(name.strip())
 
@@ -24,9 +24,26 @@ def normalize_conda_name(name: str) -> str:
     return name.strip().lower()
 
 
+def normalize_apt_name(name: str) -> str:
+    """Normalize Debian/APT package identity without changing architecture qualifiers."""
+
+    return name.strip().lower()
+
+
+def apt_base_name(name: str) -> str:
+    """Return an APT binary package name without a ``:architecture`` qualifier."""
+
+    return normalize_apt_name(name).split(":", 1)[0]
+
+
 def name_matches(key: PackageKey, query: str) -> bool:
     if key.ecosystem == "conda":
         return key.name == normalize_conda_name(query)
+    if key.ecosystem == "apt":
+        normalized = normalize_apt_name(query)
+        return key.name == normalized or (
+            ":" not in normalized and apt_base_name(key.name) == normalized
+        )
     return key.name == normalize_name(query)
 
 
@@ -38,7 +55,12 @@ class PackageKey:
     def __post_init__(self) -> None:
         ecosystem = self.ecosystem.strip().lower()
         object.__setattr__(self, "ecosystem", ecosystem)
-        normalizer = normalize_conda_name if ecosystem == "conda" else normalize_name
+        if ecosystem == "conda":
+            normalizer = normalize_conda_name
+        elif ecosystem == "apt":
+            normalizer = normalize_apt_name
+        else:
+            normalizer = normalize_name
         object.__setattr__(self, "name", normalizer(self.name))
 
     def label(self) -> str:
@@ -70,6 +92,14 @@ class PackageRecord:
     installed: bool = True
     python_names: set[str] = field(default_factory=set)
     metadata_diagnostics: list[str] = field(default_factory=list)
+    provided_names: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class PlannedChange:
+    action: str
+    candidate_version: str | None = None
+    raw: str = ""
 
 
 @dataclass
@@ -78,6 +108,9 @@ class Inventory:
     diagnostics: list[str] = field(default_factory=list)
     source: str = "current environment"
     marker_environment: dict[str, str] = field(default_factory=dict)
+    declared_roots: set[PackageKey] = field(default_factory=set)
+    held_packages: set[PackageKey] = field(default_factory=set)
+    planned_changes: dict[PackageKey, PlannedChange] = field(default_factory=dict)
 
     def add(self, record: PackageRecord) -> None:
         existing = self.packages.get(record.key)
@@ -95,6 +128,7 @@ class Inventory:
             merged = list(dict.fromkeys([*existing.dependencies, *record.dependencies]))
             existing.dependencies = merged
             existing.python_names.update(record.python_names)
+            existing.provided_names.update(record.provided_names)
             if existing.version != record.version:
                 versions = sorted({str(existing.version), str(record.version)})
                 existing.version = None
@@ -150,6 +184,9 @@ class PackageRisk:
     contributors: tuple[ConstraintContributor, ...]
     violated_by: tuple[ConstraintContributor, ...] = ()
     conflict_by: tuple[ConstraintContributor, ...] = ()
+    planned_action: str | None = None
+    candidate_version: str | None = None
+    held: bool = False
 
     @property
     def rank(self) -> tuple[int, int, int]:

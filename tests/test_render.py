@@ -1,10 +1,10 @@
 import json
 
-from depviz import __version__
-from depviz.analysis import analyze
-from depviz.inventory import reconcile_inventory
-from depviz.model import Inventory, PackageKey, PackageRecord, RequirementEdge
-from depviz.render import render_json, render_text
+from drix import __version__
+from drix.analysis import analyze
+from drix.inventory import reconcile_inventory
+from drix.model import Inventory, PackageKey, PackageRecord, RequirementEdge
+from drix.render import render_json, render_text
 
 
 def test_focus_shows_dependency_path_and_missing_state() -> None:
@@ -59,4 +59,4 @@ def test_json_has_explicit_schema_and_tool_version() -> None:
 
     payload = json.loads(render_json(inventory, results, roots, missing))
     assert payload["schema_version"] == 1
-    assert payload["depviz_version"] == __version__
+    assert payload["drix_version"] == __version__

@@ -6,8 +6,8 @@ from pathlib import Path
 
 from packaging.markers import Marker
 
-from depviz.constraints import analyze_constraints
-from depviz.model import (
+from drix.constraints import analyze_constraints
+from drix.model import (
     ConstraintContributor,
     Inventory,
     Manifest,
@@ -422,7 +422,7 @@ def analyze(
     nodes, node_index, component_of, ancestor_bits, structural_roots = _reachability(forward)
 
     if manifest is None:
-        roots = structural_roots
+        roots = set(inventory.declared_roots) if inventory.declared_roots else structural_roots
 
     root_bits = 0
     for root in roots:
@@ -469,6 +469,7 @@ def analyze(
             contributors_tuple,
             installed=record.installed,
         )
+        planned_change = inventory.planned_changes.get(key)
         results.append(
             PackageRisk(
                 package=key,
@@ -483,6 +484,9 @@ def analyze(
                 contributors=contributors_tuple,
                 violated_by=constraint.violated_by,
                 conflict_by=constraint.conflict_by,
+                planned_action=planned_change.action if planned_change else None,
+                candidate_version=planned_change.candidate_version if planned_change else None,
+                held=key in inventory.held_packages,
             )
         )
 

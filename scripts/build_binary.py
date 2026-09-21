@@ -14,7 +14,7 @@ def main() -> None:
             "--clean",
             "--onefile",
             "--name",
-            "depviz",
+            "drix",
             "--paths",
             str(ROOT / "src"),
             "--distpath",
@@ -23,7 +23,7 @@ def main() -> None:
             str(ROOT / "build" / "pyinstaller"),
             "--specpath",
             str(ROOT / "build"),
-            str(ROOT / "scripts" / "depviz_entry.py"),
+            str(ROOT / "scripts" / "drix_entry.py"),
         ]
     )
 

@@ -13,7 +13,7 @@ from pathlib import Path
 
 from packaging.requirements import InvalidRequirement, Requirement
 
-from depviz.model import (
+from drix.model import (
     Inventory,
     PackageKey,
     PackageRecord,
@@ -22,6 +22,7 @@ from depviz.model import (
     normalize_conda_name,
     normalize_name,
 )
+from drix.runtime import external_process_environment, is_frozen
 
 _CONDA_DEP_NAME = re.compile(r"^(?:(?:[^:\s]+)::)?([A-Za-z0-9_.-]+)(.*)$")
 _PYTHON_REQ_NAME = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
@@ -194,29 +195,16 @@ def _python_records_current() -> Iterable[tuple[PackageRecord, bool]]:
 
 
 def _external_process_environment() -> dict[str, str]:
-    """Return an environment safe for launching programs outside a frozen bundle."""
+    """Compatibility wrapper used by tests and the external-Python boundary."""
 
-    env = dict(os.environ)
-    if not _is_frozen():
-        return env
-
-    # PyInstaller prepends its private library directory so bundled extensions load
-    # correctly. External programs must see the user's original library search path
-    # instead, otherwise a target Python/Conda executable can load incompatible libs.
-    for key in ("LD_LIBRARY_PATH", "LIBPATH", "DYLD_LIBRARY_PATH"):
-        original_key = f"{key}_ORIG"
-        if original_key in env:
-            env[key] = env[original_key]
-        else:
-            env.pop(key, None)
-    return env
+    return external_process_environment(frozen=_is_frozen())
 
 
 def _python_records_external(
     python: Path,
 ) -> tuple[list[tuple[PackageRecord, bool]], dict[str, str]]:
     # Keep the target interpreter dependency-free: it only dumps stdlib/importlib metadata.
-    # Requirement parsing and marker evaluation happen back in depviz's interpreter.
+    # Requirement parsing and marker evaluation happen back in drix's interpreter.
     script = r'''import importlib.metadata, json, os, platform, sys
 
 def implementation_version():
@@ -311,9 +299,9 @@ def _python_for_prefix(prefix: Path) -> Path | None:
 
 
 def _is_frozen() -> bool:
-    """Return True when depviz is running from a frozen standalone bundle."""
+    """Compatibility wrapper for standalone-runtime detection."""
 
-    return bool(getattr(sys, "frozen", False))
+    return is_frozen()
 
 
 def _active_environment_prefix() -> Path | None:
@@ -329,7 +317,7 @@ def _active_environment_prefix() -> Path | None:
 
 
 def _python_from_path() -> Path | None:
-    """Locate the user's Python when a standalone depviz has no active prefix."""
+    """Locate the user's Python when a standalone drix has no active prefix."""
 
     for command in ("python3", "python"):
         value = shutil.which(command)
@@ -345,7 +333,7 @@ def _target_python(prefix: Path | None, active_prefix: Path | None) -> Path | No
         return python.resolve() if python is not None else None
 
     # A normal Python installation should inspect itself. A frozen executable must
-    # never do that: sys.executable is the depviz bundle, not the user's environment.
+    # never do that: sys.executable is the drix bundle, not the user's environment.
     if not _is_frozen():
         return Path(sys.executable).resolve()
     return _python_from_path()

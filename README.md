@@ -1,6 +1,6 @@
-# depviz
+# drix
 
-`depviz` answers one question:
+`drix` answers one question:
 
 > **Which package is risky to change?**
 
@@ -9,10 +9,13 @@ It reads dependency metadata already present in an environment, walks the graph 
 and reports blast points plus version-constraint problems.
 
 ```bash
-depviz
+drix
+drix <package>
+drix environment.yml [package]
+drix apt [package]
 ```
 
-Inside a Python or Conda environment, that prints packages ranked by:
+Inside a Python or Conda environment, `drix` prints packages ranked by:
 
 1. declared/top-level roots affected
 2. all transitive dependents affected
@@ -27,15 +30,15 @@ ROOTS TOTAL DIRECT   VERSION  PACKAGE
     3    12      4  CONFLICT  htslib
 ```
 
-## Give depviz your roots
+## Give drix your roots
 
 Graph topology can only infer which packages you intentionally asked for. A manifest lets
-depviz use the real roots while still inspecting the installed environment:
+drix use the real roots while still inspecting the installed environment:
 
 ```bash
-depviz environment.yml
-depviz requirements.txt
-depviz pyproject.toml
+drix environment.yml
+drix requirements.txt
+drix pyproject.toml
 ```
 
 Supported root manifests are Conda `environment.yml`/`.yaml`, requirements `.txt`/`.in`,
@@ -46,7 +49,7 @@ without becoming roots.
 For one package:
 
 ```bash
-depviz environment.yml openssl
+drix environment.yml openssl
 ```
 
 Focused output includes one shortest dependency path from each affected root:
@@ -65,43 +68,77 @@ Text output shows at most 20 paths; `--json` contains them all.
 Against the current environment without a manifest:
 
 ```bash
-depviz openssl
+drix openssl
 ```
 
+## APT / Debian system packages
+
+APT is a reserved source keyword, not a separate feature tree:
+
+```bash
+drix apt
+drix apt libssl3
+```
+
+`drix apt` reads the currently installed `dpkg` package graph, uses packages marked
+manual by `apt-mark` as roots, records held packages, checks APT's own dependency
+consistency with `apt-get -s check`, and runs a read-only `apt-get --simulate upgrade`.
+It never runs `apt update`, installs, removes, or upgrades anything.
+
+APT dependency alternatives are resolved against the packages/providers that are actually
+installed. If more than one installed alternative currently satisfies a dependency, drix
+does not invent a hard edge to every alternative and overstate blast radius. Debian version
+relations are evaluated with `dpkg --compare-versions`, preserving native epoch, tilde, and
+revision ordering rather than treating Debian versions as PEP 440.
+
+Focused output includes upgrade evidence when applicable:
+
+```text
+libssl3:amd64 3.0.13-1
+  roots affected: 14
+  transitive dependents: 37
+  direct dependents: 12
+  version: OK
+  apt upgrade: UPGRADE -> 3.0.14-1
+```
+
+A held package is shown as `HELD`. Upgrade simulation is evidence only; drix remains an
+inspection tool and never applies the simulated plan.
+
 Machine-readable output is intentionally a rendering option, not another command. JSON
-contains an explicit `schema_version` plus the producing `depviz_version` so downstream
+contains an explicit `schema_version` plus the producing `drix_version` so downstream
 scripts can reject incompatible output deliberately:
 
 ```bash
-depviz environment.yml --json | jq '.packages[:10]'
+drix environment.yml --json | jq '.packages[:10]'
 ```
 
 You can also point at an installed environment prefix:
 
 ```bash
-depviz /opt/conda/envs/bio
+drix /opt/conda/envs/bio
 ```
 
 
 ## Standalone Linux command
 
-`depviz` can be frozen into a single self-contained Linux executable. The release binary
-contains depviz's own Python runtime and libraries, so the command itself does not require
+`drix` can be frozen into a single self-contained Linux executable. The release binary
+contains drix's own Python runtime and libraries, so the command itself does not require
 Python or a package installation.
 
 Build and install it like a normal Unix command:
 
 ```bash
 make check                            # bootstraps isolated dev tools and runs checks
-make                                  # bootstraps PyInstaller and builds dist/depviz
-sudo make install                     # installs /usr/local/bin/depviz
+make                                  # bootstraps PyInstaller and builds dist/drix
+sudo make install                     # installs /usr/local/bin/drix
 
-depviz --version
-depviz
+drix --version
+drix
 ```
 
 `make check`, `make`, and `make install` bootstrap their own isolated `.build/venv` as needed.
-You do not need to pre-install pytest, Ruff, mypy, PyInstaller, or depviz into your system Python.
+You do not need to pre-install pytest, Ruff, mypy, PyInstaller, or drix into your system Python.
 The build host only needs Python 3.11+ with `venv`/`pip`, a C runtime suitable for PyInstaller,
 and network/package-index access the first time the isolated environment is prepared.
 
@@ -129,11 +166,11 @@ system configuration, not commands. A distro package may instead set `PREFIX=/us
 The standalone executable deliberately does **not** inspect its embedded Python runtime.
 For Python metadata it selects the target interpreter in this order:
 
-1. an explicit environment prefix passed to `depviz`
+1. an explicit environment prefix passed to `drix`
 2. the active `CONDA_PREFIX` or `VIRTUAL_ENV`
 3. `python3`, then `python`, from `PATH` when no environment prefix is active
 
-If an explicit or active prefix contains no Python interpreter, depviz keeps the inspection
+If an explicit or active prefix contains no Python interpreter, drix keeps the inspection
 scoped to that prefix; it does not fall back to an unrelated Python installation.
 
 Conda metadata is still read directly from `conda-meta`. This means the binary can live in
@@ -146,7 +183,7 @@ prefer `make` followed by `make install`.
 
 ## What "risk" means
 
-For package `P`, depviz walks dependency edges backward.
+For package `P`, drix walks dependency edges backward.
 
 ```text
 samtools ─┐
@@ -163,13 +200,14 @@ ranking tuple is simply:
 
 The tuple is sorted descending. It is deliberately not converted to a magic 0-100 score.
 
-When a manifest is supplied, its declared packages are the roots. Without a manifest,
-depviz uses source strongly connected components of the dependency graph as inferred roots.
-There are no `REQUESTED`/history heuristics, so the rule stays deterministic and cycle-safe.
+When a manifest is supplied, its declared packages are the roots. In APT mode, packages
+marked manual by `apt-mark` are the roots. Otherwise drix uses source strongly connected
+components of the dependency graph as inferred roots. There are no Python/Conda
+`REQUESTED`/history heuristics, so the rule stays deterministic and cycle-safe.
 
 ## Version conflicts
 
-For each package, depviz collects the constraints imposed by direct dependents and by a
+For each package, drix collects the constraints imposed by direct dependents and by a
 supplied manifest.
 
 ```text
@@ -178,7 +216,7 @@ B -> numpy >=1.26
 C -> numpy <1.27
 ```
 
-Depviz reports:
+Drix reports:
 
 - `OK` — the installed version satisfies the known constraints.
 - `INVALID` — the installed version violates at least one constraint, but the constraints
@@ -187,7 +225,7 @@ Depviz reports:
 - `UNKNOWN` — metadata or version syntax cannot be interpreted safely.
 - `MISSING` — another installed package depends on this package, but it is not installed.
 
-When a conflict is provable, depviz also reports a small conflicting witness set instead
+When a conflict is provable, drix also reports a small conflicting witness set instead
 of forcing you to inspect every constraint:
 
 ```text
@@ -208,10 +246,10 @@ that package is known to provide the Python distribution, using installed Python
 and Conda file records. Mere name similarity is not treated as proof of identity.
 
 This matters when, for example, a pip-installed package requires `numpy` but NumPy itself
-is Conda-owned. Depviz binds that edge to the installed Conda NumPy instead of creating a
+is Conda-owned. Drix binds that edge to the installed Conda NumPy instead of creating a
 fake second `pypi:numpy` node and under-counting its blast radius.
 
-For Conda version syntax, depviz uses Conda's native version matcher when available. Its
+For Conda version syntax, drix uses Conda's native version matcher when available. Its
 fallback supports only a conservative comparator/prefix subset; build-string or otherwise
 unsupported syntax becomes `UNKNOWN` rather than a false `OK`.
 
@@ -219,15 +257,17 @@ unsupported syntax becomes `UNKNOWN` rather than a false `OK`.
 
 - Python: installed distribution metadata (`Requires-Dist`) from the target interpreter.
 - Conda: `conda-meta/*.json` from the target prefix.
+- APT: installed `dpkg` metadata (`Depends`, `Pre-Depends`, `Provides`) plus `apt-mark`
+  manual/hold state and a read-only `apt-get --simulate upgrade`.
 
 Unresolved dependency references remain in the graph as explicit `MISSING` nodes so their
 blast radius is still visible. Malformed metadata is handled conservatively: when a
 dependency name can be recovered the edge is preserved and its constraint becomes
-`UNKNOWN`; when it cannot be recovered depviz warns that analysis may be incomplete. Conda
+`UNKNOWN`; when it cannot be recovered drix warns that analysis may be incomplete. Conda
 virtual packages such as `__glibc` and `__cuda` are host capabilities rather than installed
 packages, so they are not emitted as fake missing package rows.
 
-This is inspection, not solving. Depviz never mutates the environment.
+This is inspection, not solving. Drix never mutates the environment.
 
 ## Algorithm notes
 
@@ -241,7 +281,8 @@ materialized only for a focused package.
 The test suite includes brute-force and randomized graph oracles plus adversarial cases for
 cycles, deep chains, 10k-scale behavior, extras/marker fixpoints, malformed manifests and
 installed metadata, constraint includes, duplicate metadata, mixed Conda/pip identity and
-version semantics, virtual packages, wildcard exclusions, and ambiguous names.
+version semantics, APT alternatives/providers/manual roots/upgrade simulation, virtual
+packages, wildcard exclusions, and ambiguous names.
 
 ## Development
 

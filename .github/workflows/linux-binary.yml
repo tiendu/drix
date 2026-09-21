@@ -22,28 +22,32 @@ jobs:
             quay.io/pypa/manylinux2014_x86_64 \
             /bin/bash -lc '\
               make binary PYTHON=/opt/python/cp311-cp311/bin/python && \
-              chmod 0755 dist/depviz'
+              chmod 0755 dist/drix'
       - name: Install and smoke standalone executable
         run: |
-          rm -rf /tmp/depviz-stage
-          make install DESTDIR=/tmp/depviz-stage
-          INSTALLED=/tmp/depviz-stage/usr/local/bin/depviz
+          rm -rf /tmp/drix-stage
+          make install DESTDIR=/tmp/drix-stage
+          INSTALLED=/tmp/drix-stage/usr/local/bin/drix
           "$INSTALLED" --version
-          python3 -m venv /tmp/depviz-target
-          VIRTUAL_ENV=/tmp/depviz-target PATH="/tmp/depviz-target/bin:$PATH" \
-            "$INSTALLED" --json >/tmp/depviz.json
+          python3 -m venv /tmp/drix-target
+          VIRTUAL_ENV=/tmp/drix-target PATH="/tmp/drix-target/bin:$PATH" \
+            "$INSTALLED" --json >/tmp/drix.json
+          "$INSTALLED" apt --json >/tmp/drix-apt.json
           python3 - <<'PY'
           import json
-          payload = json.load(open('/tmp/depviz.json'))
+          payload = json.load(open('/tmp/drix.json'))
           assert payload['schema_version'] == 1
+          apt_payload = json.load(open('/tmp/drix-apt.json'))
+          assert apt_payload['schema_version'] == 1
+          assert apt_payload['source'].startswith('APT/dpkg')
           PY
       - name: Name release artifact
         run: |
-          mv dist/depviz dist/depviz-linux-x86_64
-          sha256sum dist/depviz-linux-x86_64 > dist/depviz-linux-x86_64.sha256
+          mv dist/drix dist/drix-linux-x86_64
+          sha256sum dist/drix-linux-x86_64 > dist/drix-linux-x86_64.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: depviz-linux-x86_64
+          name: drix-linux-x86_64
           path: |
-            dist/depviz-linux-x86_64
-            dist/depviz-linux-x86_64.sha256
+            dist/drix-linux-x86_64
+            dist/drix-linux-x86_64.sha256

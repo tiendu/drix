@@ -3,11 +3,11 @@ from pathlib import Path
 import pytest
 from packaging.markers import default_environment
 
-from depviz.analysis import analyze, infer_roots
-from depviz.constraints import analyze_constraints
-from depviz.inventory import _parse_conda_dependency, reconcile_inventory
-from depviz.manifests import load_manifest
-from depviz.model import (
+from drix.analysis import analyze, infer_roots
+from drix.constraints import analyze_constraints
+from drix.inventory import _parse_conda_dependency, reconcile_inventory
+from drix.manifests import load_manifest
+from drix.model import (
     ConstraintContributor,
     Inventory,
     Manifest,
@@ -234,7 +234,7 @@ def test_pypi_to_conda_cross_name_bridge_is_ambiguous_not_guessed() -> None:
 
 
 def test_focus_matching_keeps_conda_separator_identity() -> None:
-    from depviz.analysis import analyze
+    from drix.analysis import analyze
 
     inventory = Inventory()
     inventory.add(PackageRecord(PackageKey("conda", "python_abi"), "3.12"))
@@ -478,7 +478,7 @@ def test_unreadable_marker_is_kept_conservatively_with_warning() -> None:
 
 
 def test_malformed_python_requirement_preserves_recoverable_edge() -> None:
-    from depviz.inventory import _python_record
+    from drix.inventory import _python_record
 
     diagnostics: list[str] = []
     record = _python_record("app", "1", ["numpy => 2"], diagnostics=diagnostics)
@@ -492,7 +492,7 @@ def test_malformed_python_requirement_preserves_recoverable_edge() -> None:
 
 
 def test_unrecoverable_python_requirement_warns_analysis_may_be_incomplete() -> None:
-    from depviz.inventory import _python_record
+    from drix.inventory import _python_record
 
     diagnostics: list[str] = []
     record = _python_record("app", "1", ["@@ definitely not a requirement @@"], diagnostics=diagnostics)
@@ -502,7 +502,7 @@ def test_unrecoverable_python_requirement_warns_analysis_may_be_incomplete() -> 
 
 
 def test_malformed_python_requirement_preserves_blast_and_becomes_unknown() -> None:
-    from depviz.inventory import _python_record
+    from drix.inventory import _python_record
 
     inventory = Inventory()
     app = _python_record("app", "1", ["numpy => 2"])
@@ -523,7 +523,7 @@ def test_malformed_python_requirement_preserves_blast_and_becomes_unknown() -> N
 def test_malformed_conda_dependency_warns_incomplete_instead_of_silent_drop(tmp_path: Path) -> None:
     import json
 
-    from depviz.inventory import _load_conda_prefix
+    from drix.inventory import _load_conda_prefix
 
     meta = tmp_path / "conda-meta"
     meta.mkdir()

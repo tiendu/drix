@@ -1,5 +1,5 @@
-from depviz.constraints import analyze_constraints
-from depviz.model import ConstraintContributor, PackageKey
+from drix.constraints import analyze_constraints
+from drix.model import ConstraintContributor, PackageKey
 
 
 def c(parent: str, spec: str) -> ConstraintContributor:
